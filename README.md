@@ -17,7 +17,7 @@ any of the default parameters USERNAME, JOBNUM, or MAXJOBS by editing the variab
 Usage  
 ----------------
 
-'''
+```
 usage: qchain.py [-h] -t TOTAL [-u USERNAME] [-j JOBNUM] [-m MAXJOBS]
                  [-id IDENTIFIER]
 
@@ -34,7 +34,7 @@ optional arguments:
   -m MAXJOBS, --maxJobs MAXJOBS
                         Max jobs allowed in queue at once (default: 351)
   -id IDENTIFIER, --identifier IDENTIFIER
-'''
+```
 
 chain.pbs
 -----------
