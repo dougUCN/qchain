@@ -1,9 +1,9 @@
 qchain  
 ===============  
 
-A workaround for per-user limits for a TORQUE queue on a PBS array job.
+A workaround for per-user job limits for a TORQUE or SLURM computing cluster queue.
 Say a cluster limits me to MAXJOBS jobs in the queue at a time. qchain.py will 
-check your queue for actively running/queued jobs, and then submit as many PBS
+check your queue for actively running/queued jobs, and then submit as many
 t-array jobs as possible + a qchain job. The qchain job will run after the completion
 of the last t array job, and keep submitting properly labeled t-array 
 jobs until it reaches your specified TOTAL jobs 
@@ -11,17 +11,16 @@ jobs until it reaches your specified TOTAL jobs
 Getting started
 --------------------
 
-Edit settings in `template.pbs` to fit your desired job. You can also change
-any of the default parameters USERNAME, JOBNUM, or MAXJOBS by editing the variables in qchain.py.
+Edit settings in `template.pbs` or `template.slurm` (depending on your cluster) to fit your desired job. 
 
 Usage  
 ----------------
 
 ```
 usage: qchain.py [-h] -t TOTAL [-u USERNAME] [-j JOBNUM] [-m MAXJOBS]
-                 [-id IDENTIFIER]
+                 [-id IDENTIFIER] [-pbs PBS]
 
-Continually submit jobs to TORQUE system
+Continually submit jobs to TORQUE/SLURM system
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -32,16 +31,17 @@ optional arguments:
   -j JOBNUM, --jobNum JOBNUM
                         Starting job number (default: 0)
   -m MAXJOBS, --maxJobs MAXJOBS
-                        Max jobs allowed in queue at once (default: 351)
+                        Max jobs allowed in queue at once (default: 380)
   -id IDENTIFIER, --identifier IDENTIFIER
+  -pbs PBS, --pbs PBS   submission script template (default: template.slurm)
 ```
 
-chain.pbs
+Selecting between slurm/torque
 -----------
 
-Contains settings for when qchain.py is run by the cluster. I have things currently
-configured so that cluster output gets written to `qchainError.txt` and  `qchainStatus.txt`.
-You can use these to see how many jobs qchain has left to submit
+In `qchain.py`, edit the RESUBMIT and TEMPLATE filename file extensions. The slurm files end 
+with *.slurm, and the torque files end with *.pbs
+
 
 progress.json
 --------------

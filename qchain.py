@@ -1,23 +1,27 @@
 #!/usr/bin/env python
+# Doug Wong
+# 4/18/2021 -- Updated from TORQUE to SLURM 
+
 import argparse
 import os, subprocess, sys
 import time, collections, json
 import numpy as np
 from datetime import datetime
 
-RESUBMIT = 'chain.pbs'          # Name of resubmission script
-TEMPLATE = 'template.pbs'       # Template job script
+RESUBMIT = 'chain.sbatch'          # Name of resubmission script
+TEMPLATE = 'template.sbatch'       # Template job script
 PROGRESSFILE = 'progress.json'  # Name of job progress tracker file
 USERNAME = 'ucntau'             # Username on cluster account
 
 def main():
-    parser = argparse.ArgumentParser(description='Continually submit jobs to TORQUE system',
+    parser = argparse.ArgumentParser(description='Continually submit jobs to TORQUE/SLURM system',
                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-t", "--total", required=True, type=int, help="Total jobs you want to run")
     parser.add_argument("-u", "--username", type=str, default=USERNAME, help="Username on cluster acct")
     parser.add_argument("-j", "--jobNum", type=int, default=0, help="Starting job number")
     parser.add_argument("-m", "--maxJobs", type=int, default=380, help="Max jobs allowed in queue at once")
     parser.add_argument("-id", "--identifier", type=int, default=np.random.default_rng().integers(1000))
+    parser.add_argument("-pbs", "--pbs", type=str, default=TEMPLATE, help='submission script template')
     args = parser.parse_args()
 
     print('Starting qchain.py ', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -39,7 +43,10 @@ def main():
                     'last_jobNum': args.jobNum - 1}
 
     # Check current number of jobs in queue/ currently running
-    inQueue = int( subprocess.check_output(f'qselect -u {args.username} -s QR | wc -l', shell=True) )
+    # inQueue = int( subprocess.check_output(f'qselect -u {args.username} -s QR | wc -l', shell=True) )
+    inQueue = int( subprocess.check_output(f'squeue -h -u {args.username} | wc -l', shell=True) )
+
+
     print(f'Detected {inQueue} jobs in queue')
 
     # Figure out how many jobs you can submit
@@ -70,13 +77,14 @@ def main():
                     '$MAXJOBS': str(args.maxJobs)}
 
     # Submit PBS job array to torque queue
-    jobNum = submitToQueue(TEMPLATE, replacements)
+    jobNum = submitToQueue(args.pbs, replacements)
     print(f'Job ID: {jobNum}')
-    jobNum = jobNum[:-2] # Get rid of the [] characters at the end of the string
+    # jobNum = jobNum[:-2] # Get rid of the [] characters at the end of the string
 
     # submit chaining job to torque queue if needed
     if jobsLeft > 0:
-        replacements.update( {'$SUBMITTED_JOB': f'{jobNum}[{jobEnd}]'} ) # retrigger qchain after last t array job
+        # replacements.update( {'$SUBMITTED_JOB': f'{jobNum}[{jobEnd}]'} ) # retrigger qchain after last t array job
+        replacements.update( {'$SUBMITTED_JOB': f'{jobNum}_{jobEnd}'} ) # retrigger qchain after last t array job
         resubmitJobNum = submitToQueue(RESUBMIT, replacements)
         print(f'Cluster will rerun qchain.py to submit more jobs later (Job ID: {resubmitJobNum})')
 
@@ -132,7 +140,10 @@ def submitToQueue(template, replacements, submitName='submitMe.pbs', removePBS=T
 
     # Submit job and get jobID
     # The last 4 characters are ".s1\n", I just want the job ID
-    stdout = subprocess.check_output(["qsub", submitName]).decode('ascii')[:-4]
+    # stdout = subprocess.check_output(["qsub", submitName]).decode('ascii')[:-4]
+
+    # sbatch submission returns "Submitted batch job JOB_ID\n"
+    stdout = subprocess.check_output(["sbatch", submitName]).decode('ascii')[20:-1]
 
     if removePBS:
         os.remove( submitName )
