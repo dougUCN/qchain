@@ -40,7 +40,7 @@ Selecting between slurm/torque
 -----------
 
 In `qchain.py`, edit the RESUBMIT and TEMPLATE filename file extensions. The slurm files end 
-with *.slurm, and the torque files end with *.pbs
+with *.sbatch, and the torque files end with *.pbs
 
 
 progress.json
