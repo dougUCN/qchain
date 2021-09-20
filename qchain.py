@@ -8,8 +8,6 @@ import time, collections, json
 import numpy as np
 from datetime import datetime
 
-RESUBMIT = 'chain.sbatch'          # Name of resubmission script
-TEMPLATE = 'template.sbatch'       # Template job script
 PROGRESSFILE = 'progress.json'  # Name of job progress tracker file
 USERNAME = 'ucntau'             # Username on cluster account
 
@@ -21,10 +19,24 @@ def main():
     parser.add_argument("-j", "--jobNum", type=int, default=0, help="Starting job number")
     parser.add_argument("-m", "--maxJobs", type=int, default=380, help="Max jobs allowed in queue at once")
     parser.add_argument("-id", "--identifier", type=int, default=np.random.default_rng().integers(1000))
-    parser.add_argument("-pbs", "--pbs", type=str, default=TEMPLATE, help='submission script template')
+    parser.add_argument("-temp", "--template", type=str, help='submission script template')
+    parser.add_argument('-c', '--cluster', type=str, choices=["slurm","torque"], default="slurm", 
+                        help='Cluster queue version')
     args = parser.parse_args()
 
     print('Starting qchain.py ', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+    if args.cluster == 'slurm':
+        fileExt = '.sbatch'
+    else:
+        fileExt = '.pbs'
+    
+    RESUBMIT = f'chain{fileExt}'        
+
+    if args.template:
+        TEMPLATE = args.template
+    else:
+        TEMPLATE = f'template{fileExt}'
 
     # Check for existence of progress file
     if os.path.isfile(PROGRESSFILE):
@@ -43,8 +55,10 @@ def main():
                     'last_jobNum': args.jobNum - 1}
 
     # Check current number of jobs in queue/ currently running
-    # inQueue = int( subprocess.check_output(f'qselect -u {args.username} -s QR | wc -l', shell=True) )
-    inQueue = int( subprocess.check_output(f'squeue -h -u {args.username} | wc -l', shell=True) )
+    if args.cluster == 'slurm':
+        inQueue = int( subprocess.check_output(f'squeue -h -u {args.username} | wc -l', shell=True) )
+    else:
+        inQueue = int( subprocess.check_output(f'qselect -u {args.username} -s QR | wc -l', shell=True) )
 
 
     print(f'Detected {inQueue} jobs in queue')
@@ -77,15 +91,19 @@ def main():
                     '$MAXJOBS': str(args.maxJobs)}
 
     # Submit PBS job array to torque queue
-    jobNum = submitToQueue(args.pbs, replacements)
+    jobNum = submitToQueue(TEMPLATE, replacements, args.cluster)
     print(f'Job ID: {jobNum}')
-    # jobNum = jobNum[:-2] # Get rid of the [] characters at the end of the string
+
+    if args.cluster=='torque':
+        jobNum = jobNum[:-2] # Get rid of the [] characters at the end of the string
 
     # submit chaining job to torque queue if needed
     if jobsLeft > 0:
-        # replacements.update( {'$SUBMITTED_JOB': f'{jobNum}[{jobEnd}]'} ) # retrigger qchain after last t array job
-        replacements.update( {'$SUBMITTED_JOB': f'{jobNum}_{jobEnd}'} ) # retrigger qchain after last t array job
-        resubmitJobNum = submitToQueue(RESUBMIT, replacements)
+        if args.cluster == 'slurm':
+            replacements.update( {'$SUBMITTED_JOB': f'{jobNum}_{jobEnd}'} ) # retrigger qchain after last t array job
+        else:
+            replacements.update( {'$SUBMITTED_JOB': f'{jobNum}[{jobEnd}]'} ) # retrigger qchain after last t array job
+        resubmitJobNum = submitToQueue(RESUBMIT, replacements, args.cluster)
         print(f'Cluster will rerun qchain.py to submit more jobs later (Job ID: {resubmitJobNum})')
 
         # Update/create progress file
@@ -126,24 +144,28 @@ def copyReplace(inName, outName, replacements):
             outfile.write(line)
     return
 
-def submitToQueue(template, replacements, submitName='submitMe.pbs', removePBS=True):
+def submitToQueue(template, replacements, clusterType, submitName='submitMe.pbs', removePBS=True):
     '''
     Creates a submission pbs script from the template, and submits to queue
     Returns string jobID
     '''
     if not os.path.isfile(template):
-        print(f"Error: Cannot find {template}" + template)
+        print(f"Error: Cannot find {template}")
         sys.exit()
 
     # Make new file submission PBS script from template file
     copyReplace(template, submitName, replacements)
 
     # Submit job and get jobID
-    # The last 4 characters are ".s1\n", I just want the job ID
-    # stdout = subprocess.check_output(["qsub", submitName]).decode('ascii')[:-4]
-
-    # sbatch submission returns "Submitted batch job JOB_ID\n"
-    stdout = subprocess.check_output(["sbatch", submitName]).decode('ascii')[20:-1]
+    if clusterType == 'torque':
+        # The last 4 characters are ".s1\n", I just want the job ID
+        stdout = subprocess.check_output(["qsub", submitName]).decode('ascii')[:-4]
+    elif clusterType == 'slurm':
+        # sbatch submission returns "Submitted batch job JOB_ID\n"
+        stdout = subprocess.check_output(["sbatch", submitName]).decode('ascii')[20:-1]
+    else:
+        print(f"Error with clusterType {clusterType}. Must be either 'torque' or 'slurm'")
+        sys.exit()
 
     if removePBS:
         os.remove( submitName )

@@ -33,15 +33,11 @@ optional arguments:
   -m MAXJOBS, --maxJobs MAXJOBS
                         Max jobs allowed in queue at once (default: 380)
   -id IDENTIFIER, --identifier IDENTIFIER
-  -pbs PBS, --pbs PBS   submission script template (default: template.slurm)
+  -temp TEMPLATE, --template TEMPLATE
+                        submission script template
+  -c {slurm,torque}, --cluster {slurm,torque}
+                        Cluster queue version (default: slurm)
 ```
-
-Selecting between slurm/torque
------------
-
-In `qchain.py`, edit the RESUBMIT and TEMPLATE filename file extensions. The slurm files end 
-with *.sbatch, and the torque files end with *.pbs
-
 
 progress.json
 --------------
